@@ -35,27 +35,21 @@ OUTPUT_PREFIX = "linkedin_search_results"  # Prefix for output files
 ENABLE_LOGGING = True                     # Enable detailed logging
 
 # ==========================================
-# AUTHENTICATION SETTINGS - UPDATE WHEN TOKENS EXPIRE
+# AUTHENTICATION SETTINGS - IMPORTED FROM CONFIG
 # ==========================================
 
-# Main authentication tokens (update these when they expire)
-CSRF_TOKEN = "ajax:9098333584321030060"
-JSESSIONID = "ajax:9098333584321030060"
-
-# LinkedIn authentication cookies (update when expired)
-LI_AT_TOKEN = "AQEDAVwXfesBDznOAAABl6tWvZkAAAGXz2NBmU4A0GYxXMnw8_TJ41BhBiXtEtstqkVVCvoteATNmm5Hv6QymXSEQuRd73_SX8GgtwyjUXBxlgCyiAL5WuBlJnGF5cw7lc8QqM-rNBXD76nLoB-5Lz7Z"
-LI_RM_TOKEN = "AQHo0hGAazZ5-wAAAZerVr9I3okydZR3pehi2c6vEtGl__0mzRLg1cjZu98ECde-qVJO_PW3rvpkqyzQ-oiYBiOdQif2OkDHpiI2wzgMArJp2SXxwchFTWnqOMwnXrNXjCIAcRAA3YzJ9Za6i8RsP22IeMRGO4sAJLGfQT7O7R9FLCQWfMWNYIkSG9C_l0KFX7SkgOgF7N6pjzcK6H7Ybto_HX4vCeE1Ou1IovJVdlJumgdHkWHPp9zVHKJnuDn4igXrkP170WBdqOshd97igizK80BlxSUnZYdAfQBTmlSsqLQQ0k4YdXh2fmOZYuDxCdPOsaYvzjS9UOHcX-6JYQ"
-
-# Browser/device cookies (usually stable, but update if needed)
-BCOOKIE = "v=2&334177d5-6343-45d5-83a3-a67fec77e94a"
-BSCOOKIE = "v=1&202506260817304963ce6c-d9ce-495a-8887-e7dcac735c21AQHDT7wQ2-FFK8MEXFU-CX0eNgdaMnH2"
-LIDC_COOKIE = "b=TB35:s=T:r=T:a=T:p=T:g=4270:u=1:x=1:i=1750935476:t=1751012679:v=2:sig=AQFSGCY152JiwMiY3-2kYECJzWtSdeD4"
-
-# Page instance (update if you get different navigation contexts)
-PAGE_INSTANCE = "urn:li:page:p_flagship3_search_srp_content;lK19FQA3Q1Gc0tqam53QBA=="
-
-# GraphQL query ID (rarely changes, but update if needed)
-QUERY_ID = "voyagerSearchDashClusters.f5e2c5bf3e7823addfa154e40260cb54"
+# Import sensitive authentication data from separate config file
+try:
+    from config import (
+        CSRF_TOKEN, JSESSIONID, LI_AT_TOKEN, LI_RM_TOKEN,
+        BCOOKIE, BSCOOKIE, LIDC_COOKIE, PAGE_INSTANCE, QUERY_ID
+    )
+    print("✅ Authentication config loaded successfully")
+except ImportError:
+    print("❌ ERROR: config.py not found!")
+    print("📋 Please copy config_template.py to config.py and add your LinkedIn tokens")
+    print("📖 See linkedin_auth_guide.md for instructions on getting tokens")
+    exit(1)
 
 # ==========================================
 # END OF CONFIGURATION
