@@ -1,94 +1,107 @@
-# LinkedIn API Scraper
+# LinkedIn Message Sender
 
-A Python script for scraping LinkedIn posts using their GraphQL API with anti-detection measures.
+A PowerShell script to programmatically send messages on LinkedIn.
 
-## ⚠️ Important Security Notice
+## Usage
 
-This project requires LinkedIn authentication tokens that are **personal and sensitive**. Never share your tokens publicly!
+The script provides a simple way to send LinkedIn messages using PowerShell.
 
-## 🚀 Setup Instructions
+### Prerequisites
 
-### 1. Clone the Repository
-```bash
-git clone <your-repo-url>
-cd linkedin-api-project
+- PowerShell 5.1 or higher
+- Valid LinkedIn authentication cookies
+
+### Sending a Message
+
+```powershell
+# Basic usage
+.\send_linkedin_message.ps1 -MessageText "Hello, this is a test message" -ConversationUrn "urn:li:msg_conversation:(urn:li:fsd_profile:ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc,2-OTkxOWNhY2YtYWY1ZC00OTNjLWE5YzItMmZiYjFhYzE2MjE1XzEwMA==)"
+
+# Using a config file
+.\send_linkedin_message.ps1 -MessageText "Hello, this is a test message" -ConversationUrn "urn:li:msg_conversation:(urn:li:fsd_profile:YOUR_PROFILE_ID,CONVERSATION_ID)" -ConfigFile "my_linkedin_config.json"
+
+# Specifying a profile ID
+.\send_linkedin_message.ps1 -MessageText "Hello, this is a test message" -ConversationUrn "urn:li:msg_conversation:(urn:li:fsd_profile:YOUR_PROFILE_ID,CONVERSATION_ID)" -ProfileId "YOUR_PROFILE_ID"
 ```
 
-### 2. Install Dependencies
-```bash
-pip install requests
+### Parameters
+
+- **MessageText**: The content of your message
+- **ConversationUrn**: The URN of the conversation you want to send the message to
+- **ConfigFile** (optional): Path to a JSON config file containing LinkedIn cookies
+- **ProfileId** (optional): Your LinkedIn profile ID
+
+### Finding the Conversation URN
+
+1. Open the LinkedIn conversation in your browser
+2. The URL will look something like: `https://www.linkedin.com/messaging/thread/2-OTkxOWNhY2YtYWY1ZC00OTNjLWE5YzItMmZiYjFhYzE2MjE1XzEwMA==/`
+3. Use the following format for the URN:
+   ```
+   urn:li:msg_conversation:(urn:li:fsd_profile:YOUR_PROFILE_ID,CONVERSATION_ID_FROM_URL)
+   ```
+
+## Configuration
+
+There are two ways to set up the configuration:
+
+### Option 1: Using the Extract Cookies Helper
+
+The easiest way to get started is to use the included helper script:
+
+```powershell
+.\extract_cookies.ps1
 ```
 
-### 3. Configure Authentication (REQUIRED)
-```bash
-# Copy the template config file
-cp config_template.py config.py
+This interactive script will:
+1. Prompt you for your LinkedIn profile ID
+2. Guide you through collecting essential cookies from your browser
+3. Generate a config file automatically
 
-# Edit config.py with your LinkedIn authentication tokens
-# See linkedin_auth_guide.md for detailed instructions
+You can also specify a custom output file:
+```powershell
+.\extract_cookies.ps1 -OutputFile "my_custom_config.json"
 ```
 
-### 4. Get Your LinkedIn Tokens
-Follow the detailed guide in `linkedin_auth_guide.md` to extract your LinkedIn authentication tokens using browser developer tools.
+### Option 2: Manual Configuration
 
-### 5. Run the Scraper
-```bash
-python linkedin_api_call.py
-```
+Alternatively, you can set up the configuration manually:
 
-## 📁 Project Structure
+1. Copy the template file:
+   ```
+   cp linkedin_config_template.json linkedin_config.json
+   ```
 
-- `linkedin_api_call.py` - Main scraper script
-- `config_template.py` - Template for authentication config (safe to share)
-- `config.py` - Your actual tokens (DO NOT share, auto-ignored by git)
-- `linkedin_auth_guide.md` - Detailed guide for getting LinkedIn tokens
-- `.gitignore` - Prevents sensitive files from being committed
+2. Edit the file to include your cookies:
+   ```json
+   {
+     "profile_id": "YOUR_LINKEDIN_PROFILE_ID",
+     "cookies": [
+       {
+         "name": "li_at",
+         "value": "YOUR_LI_AT_VALUE",
+         "path": "/",
+         "domain": ".www.linkedin.com"
+       },
+       // Add more cookies here...
+     ],
+     "csrf_token": "ajax:YOUR_CSRF_TOKEN"
+   }
+   ```
 
-## 🔧 Configuration
+3. Getting your cookies:
+   - Open LinkedIn in your browser
+   - Open Developer Tools (F12)
+   - Go to the "Application" tab
+   - Under "Storage" click on "Cookies"
+   - Find the cookies for the linkedin.com domain
+   - Copy the values to your config file
 
-Edit the search settings in `linkedin_api_call.py`:
+## File Structure
 
-```python
-SEARCH_KEYWORDS = "hiring marketing dubai"  # What to search for
-TARGET_POSTS = 40                          # Number of posts to scrape
-POSTS_PER_PAGE = 10                        # Posts per page
-BASE_DELAY = 2                             # Delay between requests
-```
+- `send_linkedin_message.ps1` - Main script for sending messages
+- `extract_cookies.ps1` - Helper script to generate configuration
+- `linkedin_config_template.json` - Template for configuration
 
-## 🛡️ Security Features
+## Disclaimer
 
-- **Token separation**: Sensitive tokens are kept in a separate config file
-- **Git ignore**: Sensitive files are automatically excluded from version control
-- **Rate limiting**: Built-in delays to avoid being blocked
-- **User agent rotation**: Anti-detection measures
-
-## 📊 Output
-
-The scraper generates:
-- CSV file with post data
-- JSON backup file with raw data
-- Detailed logs
-
-## ⚠️ Important Notes
-
-1. **Use responsibly**: Respect LinkedIn's terms of service
-2. **Rate limiting**: Don't scrape too aggressively
-3. **Token updates**: Tokens expire and need periodic updates
-4. **Account safety**: Consider using a dedicated account for scraping
-
-## 🔍 Troubleshooting
-
-- **403 Forbidden errors**: Your tokens have expired, update them
-- **No results**: Check your search keywords or page instance
-- **Rate limited**: Increase delays in configuration
-
-## 📖 Documentation
-
-See `linkedin_auth_guide.md` for detailed instructions on:
-- Getting authentication tokens
-- Updating expired tokens
-- Troubleshooting common issues
-
-## 🚨 Security Reminder
-
-**NEVER commit your `config.py` file or share your LinkedIn tokens publicly!** 
+This script is provided for educational purposes only. Use it responsibly and in accordance with LinkedIn's terms of service. 

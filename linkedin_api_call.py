@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 LinkedIn API Call Script - Enhanced Version
-Features: Rate limiting, User agent rotation, Error handling, Anti-detection
-Uses GraphQL endpoint for clean structured data extraction
+Features: Rate limiting, User agent rotation, Error handling, Anti-detection, Message sending
+Uses GraphQL endpoint for clean structured data extraction and messaging API for sending messages
 """
 
 import requests
@@ -14,6 +14,7 @@ from datetime import datetime
 import urllib.parse
 from typing import Dict, List, Optional
 import logging
+import uuid
 
 # ==========================================
 # CONFIGURATION SETTINGS - EDIT THESE VALUES
@@ -24,6 +25,11 @@ SEARCH_KEYWORDS = "hiring marketing dubai"  # What you want to search for
 TARGET_POSTS = 40                          # How many posts you want (total)
 POSTS_PER_PAGE = 10                        # Posts to fetch per page (recommended: 10)
 MAX_PAGES = 6                              # Maximum pages to fetch (safety limit)
+
+# Messaging settings
+MESSAGE_DELAY = 5                          # Delay between messages (seconds)
+MAX_MESSAGES_PER_SESSION = 50              # Maximum messages per session (safety limit)
+DEFAULT_MESSAGE = "Hi there! I came across your profile and would love to connect. Looking forward to networking with you!"
 
 # Rate limiting settings (to avoid being blocked)
 BASE_DELAY = 2                             # Base delay between requests (seconds)
@@ -71,7 +77,7 @@ else:
 logger = logging.getLogger(__name__)
 
 class LinkedInScraper:
-    """Enhanced LinkedIn scraper with anti-detection measures"""
+    """Enhanced LinkedIn scraper with anti-detection measures and messaging capabilities"""
     
     def __init__(self):
         self.session = requests.Session()
@@ -85,6 +91,14 @@ class LinkedInScraper:
             'com.linkedin.android/199500 (Linux; U; Android 12; en_US; Pixel 6; Build/SD1A.210817.036; Cronet/127.0.6533.64)',
             'com.linkedin.android/199400 (Linux; U; Android 11; en_US; SM-G991B; Build/RP1A.200720.012; Cronet/127.0.6533.63)',
             'com.linkedin.android/199300 (Linux; U; Android 13; en_US; OnePlus 9; Build/RKQ1.201105.002; Cronet/127.0.6533.62)'
+        ]
+        
+        # Web user agents for messaging
+        self.web_user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
         ]
         
         # Device IDs for rotation
@@ -109,51 +123,94 @@ class LinkedInScraper:
             'cookie': f"JSESSIONID={JSESSIONID}; bcookie={BCOOKIE}; bscookie={BSCOOKIE}; lang=v=2&lang=en_US; li_at={LI_AT_TOKEN}; li_rm={LI_RM_TOKEN}; liap=true; lidc={LIDC_COOKIE}",
             'priority': 'u=0, i'
         }
-    
-    def get_random_headers(self) -> Dict[str, str]:
-        """Generate randomized headers for anti-detection"""
-        headers = self.base_headers.copy()
         
-        # Rotate user agent
-        headers['user-agent'] = random.choice(self.user_agents)
-        
-        # Rotate device ID
-        device_id = random.choice(self.device_ids)
-        headers['x-udid'] = device_id
-        
-        # Generate tracking data with rotated device ID
-        track_data = {
-            "osName": "Android OS",
-            "osVersion": random.choice(["13", "12", "11"]),
-            "clientVersion": "4.1.1088",
-            "clientMinorVersion": random.randint(199300, 199600),
-            "model": random.choice([
-                "Google_sdk_gphone64_x86_64",
-                "Pixel 6",
-                "SM-G991B",
-                "OnePlus 9"
-            ]),
-            "displayDensity": random.choice([3.0, 3.5, 4.0]),
-            "displayWidth": random.choice([1440, 1080, 1200]),
-            "displayHeight": random.choice([2891, 2340, 2400]),
-            "dpi": "xhdpi",
-            "deviceType": "android",
-            "appId": "com.linkedin.android",
-            "deviceId": device_id,
-            "timezoneOffset": 4,
-            "timezone": "Asia/Dubai",
-            "storeId": "us_googleplay",
-            "isAdTrackingLimited": False,
-            "mpName": "voyager-android",
-            "mpVersion": "2.166.40"
+        # Messaging headers template
+        self.messaging_headers = {
+            'accept': 'application/json',
+            'accept-language': 'en-US,en;q=0.7',
+            'content-type': 'text/plain;charset=UTF-8',
+            'csrf-token': CSRF_TOKEN,
+            'origin': 'https://www.linkedin.com',
+            'priority': 'u=1, i',
+            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Brave";v="138"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'sec-gpc': '1',
+            'x-li-lang': 'en_US',
+            'x-restli-protocol-version': '2.0.0',
+            'cookie': f"bcookie={BCOOKIE}; bscookie={BSCOOKIE}; liap=true; JSESSIONID={JSESSIONID}; timezone=Asia/Dubai; li_theme=light; li_theme_set=app; li_at={LI_AT_TOKEN}; lang=v=2&lang=en-us; lidc={LIDC_COOKIE}"
         }
-        
-        headers['x-li-track'] = json.dumps(track_data)
-        return headers
     
-    def apply_rate_limiting(self, attempt: int = 0) -> None:
+    def get_random_headers(self, for_messaging: bool = False) -> Dict[str, str]:
+        """Generate randomized headers for anti-detection"""
+        if for_messaging:
+            headers = self.messaging_headers.copy()
+            headers['user-agent'] = random.choice(self.web_user_agents)
+            
+            # Generate web tracking data
+            track_data = {
+                "clientVersion": "1.13.36800.3",
+                "mpVersion": "1.13.36800.3",
+                "osName": "web",
+                "timezoneOffset": 4,
+                "timezone": "Asia/Dubai",
+                "deviceFormFactor": "DESKTOP",
+                "mpName": "voyager-web",
+                "displayDensity": random.choice([2.0, 2.5, 3.0]),
+                "displayWidth": random.choice([1920, 2560, 3440]),
+                "displayHeight": random.choice([1080, 1440, 1600])
+            }
+            
+            headers['x-li-track'] = json.dumps(track_data)
+            return headers
+        else:
+            headers = self.base_headers.copy()
+            
+            # Rotate user agent
+            headers['user-agent'] = random.choice(self.user_agents)
+            
+            # Rotate device ID
+            device_id = random.choice(self.device_ids)
+            headers['x-udid'] = device_id
+            
+            # Generate tracking data with rotated device ID
+            track_data = {
+                "osName": "Android OS",
+                "osVersion": random.choice(["13", "12", "11"]),
+                "clientVersion": "4.1.1088",
+                "clientMinorVersion": random.randint(199300, 199600),
+                "model": random.choice([
+                    "Google_sdk_gphone64_x86_64",
+                    "Pixel 6",
+                    "SM-G991B",
+                    "OnePlus 9"
+                ]),
+                "displayDensity": random.choice([3.0, 3.5, 4.0]),
+                "displayWidth": random.choice([1440, 1080, 1200]),
+                "displayHeight": random.choice([2891, 2340, 2400]),
+                "dpi": "xhdpi",
+                "deviceType": "android",
+                "appId": "com.linkedin.android",
+                "deviceId": device_id,
+                "timezoneOffset": 4,
+                "timezone": "Asia/Dubai",
+                "storeId": "us_googleplay",
+                "isAdTrackingLimited": False,
+                "mpName": "voyager-android",
+                "mpVersion": "2.166.40"
+            }
+            
+            headers['x-li-track'] = json.dumps(track_data)
+            return headers
+    
+    def apply_rate_limiting(self, attempt: int = 0, is_messaging: bool = False) -> None:
         """Apply intelligent rate limiting with exponential backoff"""
-        if attempt == 0:
+        if is_messaging:
+            delay = MESSAGE_DELAY + random.uniform(1.0, 3.0)
+        elif attempt == 0:
             delay = self.base_delay + random.uniform(0.5, 2.0)
         else:
             # Exponential backoff for retries
@@ -161,6 +218,127 @@ class LinkedInScraper:
         
         logger.info(f"Applying rate limit: {delay:.2f} seconds")
         time.sleep(delay)
+    
+    def send_message(self, conversation_urn: str, message_text: str, mailbox_urn: str = None) -> bool:
+        """Send a message to a LinkedIn conversation"""
+        url = "https://www.linkedin.com/voyager/api/voyagerMessagingDashMessengerMessages?action=createMessage"
+        
+        # Generate unique tokens
+        origin_token = str(uuid.uuid4())
+        tracking_id = str(uuid.uuid4())[:16]
+        
+        # If mailbox_urn is not provided, try to extract from conversation_urn
+        if not mailbox_urn:
+            # This is a simplified extraction - you might need to adjust based on actual URN format
+            if "urn:li:fsd_profile:" in conversation_urn:
+                mailbox_urn = conversation_urn.split(",")[0].replace("urn:li:msg_conversation:(", "")
+            else:
+                logger.error("Could not extract mailbox URN from conversation URN")
+                return False
+        
+        payload = {
+            "message": {
+                "body": {
+                    "attributes": [],
+                    "text": message_text
+                },
+                "renderContentUnions": [],
+                "conversationUrn": conversation_urn,
+                "originToken": origin_token
+            },
+            "mailboxUrn": mailbox_urn,
+            "trackingId": tracking_id,
+            "dedupeByClientGeneratedToken": False
+        }
+        
+        for attempt in range(self.max_retries):
+            try:
+                # Apply rate limiting for messaging
+                if attempt > 0:
+                    self.apply_rate_limiting(attempt, is_messaging=True)
+                else:
+                    self.apply_rate_limiting(is_messaging=True)
+                
+                # Get messaging headers
+                headers = self.get_random_headers(for_messaging=True)
+                
+                logger.info(f"Sending message (attempt: {attempt + 1})")
+                logger.info(f"Message: {message_text[:50]}...")
+                
+                response = self.session.post(
+                    url,
+                    headers=headers,
+                    data=json.dumps(payload),
+                    timeout=self.timeout
+                )
+                
+                logger.info(f"Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    logger.info("✅ Message sent successfully!")
+                    return True
+                elif response.status_code == 429:
+                    logger.warning("Rate limited by LinkedIn. Waiting longer...")
+                    time.sleep(60 + random.uniform(10, 30))
+                    continue
+                elif response.status_code == 403:
+                    logger.error("Access forbidden. Credentials may be expired or insufficient permissions.")
+                    break
+                else:
+                    logger.warning(f"Unexpected status code: {response.status_code}")
+                    logger.debug(f"Response: {response.text[:500]}...")
+                    
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request failed (attempt {attempt + 1}): {e}")
+                if attempt < self.max_retries - 1:
+                    self.apply_rate_limiting(attempt, is_messaging=True)
+                    continue
+                else:
+                    break
+        
+        logger.error("❌ Failed to send message after all attempts")
+        return False
+    
+    def send_bulk_messages(self, recipients: List[Dict], message_text: str = None) -> Dict:
+        """Send messages to multiple recipients"""
+        if not message_text:
+            message_text = DEFAULT_MESSAGE
+        
+        results = {
+            'success': 0,
+            'failed': 0,
+            'total': len(recipients),
+            'failed_recipients': []
+        }
+        
+        logger.info(f"Starting bulk message sending to {len(recipients)} recipients")
+        
+        for i, recipient in enumerate(recipients, 1):
+            if results['success'] >= MAX_MESSAGES_PER_SESSION:
+                logger.warning(f"Reached maximum messages per session ({MAX_MESSAGES_PER_SESSION}). Stopping.")
+                break
+            
+            conversation_urn = recipient.get('conversation_urn')
+            mailbox_urn = recipient.get('mailbox_urn')
+            recipient_name = recipient.get('name', 'Unknown')
+            
+            if not conversation_urn:
+                logger.error(f"No conversation URN for recipient {i}: {recipient_name}")
+                results['failed'] += 1
+                results['failed_recipients'].append(recipient)
+                continue
+            
+            logger.info(f"Sending message {i}/{len(recipients)} to {recipient_name}")
+            
+            success = self.send_message(conversation_urn, message_text, mailbox_urn)
+            
+            if success:
+                results['success'] += 1
+            else:
+                results['failed'] += 1
+                results['failed_recipients'].append(recipient)
+        
+        return results
     
     def make_api_call(self, start_page: int = 0, count: int = 10) -> Optional[Dict]:
         """Make LinkedIn API call with retry logic and error handling"""
