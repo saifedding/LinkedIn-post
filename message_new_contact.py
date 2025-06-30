@@ -20,10 +20,27 @@ class NewContactMessenger:
         self.session.cookies = self.extractor.session.cookies
         self.session.headers = self.extractor.session.headers.copy()
         
-        # Add required headers for messaging
+        # Add required headers for messaging (matching PowerShell script)
         self.session.headers.update({
-            "content-type": "text/plain;charset=UTF-8",
-            "origin": "https://www.linkedin.com"
+            "authority": "www.linkedin.com",
+            "method": "POST",
+            "path": "/voyager/api/voyagerMessagingDashMessengerMessages?action=createMessage",
+            "scheme": "https",
+            "accept": "application/json",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-US,en;q=0.9",
+            "origin": "https://www.linkedin.com",
+            "priority": "u=1, i",
+            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138", "Brave";v="138"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "sec-gpc": "1",
+            "x-li-lang": "en_US",
+            "x-li-track": '{"clientVersion":"1.13.36800.3","mpVersion":"1.13.36800.3","osName":"web","timezoneOffset":4,"timezone":"Asia/Dubai","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":2.5,"displayWidth":3840,"displayHeight":2400}',
+            "content-type": "text/plain;charset=UTF-8"
         })
         
     def extract_urns(self, profile_url: str) -> Dict:
@@ -31,7 +48,7 @@ class NewContactMessenger:
         print(f"🔍 Extracting URNs from: {profile_url}")
         return self.extractor.get_messaging_urns(profile_url)
     
-    def send_message(self, urns: Dict, message_text: str) -> bool:
+    def send_message(self, urns: Dict, message_text: str, profile_url: str) -> bool:
         """Send a message using extracted URNs"""
         if not urns or "hostRecipientUrns" not in urns:
             print("❌ Missing required URNs for messaging")
@@ -45,19 +62,37 @@ class NewContactMessenger:
         payload["originToken"] = str(uuid.uuid4())
         payload["trackingId"] = str(uuid.uuid4())[:16]
         
+        # Update headers with specific referer and page instance for this profile
+        headers = self.session.headers.copy()
+        headers.update({
+            "referer": profile_url,
+            "x-li-page-instance": "urn:li:page:d_flagship3_profile_view_base;hOn+xkrURFiK118ise1SZw=="
+        })
+        
         # API endpoint
         url = "https://www.linkedin.com/voyager/api/voyagerMessagingDashMessengerMessages?action=createMessage"
         
         try:
             print(f"📤 Sending message to: {urns['recipient_urn']}")
-            response = self.session.post(url, data=json.dumps(payload))
+            print(f"📄 Message: \"{message_text}\"")
+            
+            # Encode the payload exactly like PowerShell does
+            json_body = json.dumps(payload, separators=(',', ':'))
+            encoded_body = json_body.encode('utf-8')
+            
+            response = self.session.post(url, headers=headers, data=encoded_body)
             
             if response.status_code == 200:
                 print("✅ Message sent successfully!")
+                try:
+                    response_data = response.json()
+                    print(f"📋 Response: {response_data}")
+                except:
+                    print("📋 Response received (non-JSON)")
                 return True
             else:
                 print(f"❌ Failed to send message. Status: {response.status_code}")
-                print(f"Response: {response.text[:200]}")
+                print(f"Response: {response.text[:500]}")
                 return False
         except Exception as e:
             print(f"❌ Error sending message: {e}")
@@ -120,7 +155,7 @@ def main():
         sys.exit(0)
         
     # Send the message
-    success = messenger.send_message(urns, message_text)
+    success = messenger.send_message(urns, message_text, profile_url)
     
     if success:
         print("\n" + "="*80)

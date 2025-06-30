@@ -132,25 +132,40 @@ class LinkedInProfileURNExtractor:
                 # Look for profile URN in the page source with multiple patterns
                 urn_patterns = [
                     # Specifically target patterns that look for OTHER profiles, not your own
-                    r'urn:li:fsd_profile:([A-Za-z0-9_-]{16,24})',  # Basic pattern
-                    r'"miniProfile":"urn:li:fs_miniProfile:([^"]+)"',
+                    r'urn:li:fsd_profile:([A-Za-z0-9_-]{20,50})',  # Extended pattern for full URN
                     r'"profileUrn":"urn:li:fsd_profile:([^"]+)"',
                     r'&quot;profileUrn&quot;:&quot;urn:li:fsd_profile:([^&]+)&quot;',
-                    r'"urn:li:fsd_profile:([^"]+)"'
+                    r'"urn:li:fsd_profile:([^"]+)"',
+                    r'"miniProfile":"urn:li:fs_miniProfile:([^"]+)"',
+                    r'urn:li:fsd_profile:([A-Za-z0-9_-]+)',  # Catch-all pattern
                 ]
                 
                 all_urns = []
-                your_urn = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"  # Your own URN to filter out
+                your_urn_id = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"  # Your own URN ID to filter out
                 
                 for pattern in urn_patterns:
                     matches = re.findall(pattern, response.text)
                     for match in matches:
-                        # Clean up the match
-                        if match and match != your_urn and "ACoAA" in match:
+                        # Clean up the match and ensure it's a valid URN
+                        if match and match != your_urn_id and "ACoAA" in match and len(match) > 20:
                             all_urns.append(match)
                 
-                # Filter out duplicates and your own URN
-                unique_urns = [u for u in set(all_urns) if your_urn not in u]
+                # Filter out duplicates and your own URN, keep longest versions
+                unique_urns = []
+                for urn in set(all_urns):
+                    if your_urn_id not in urn:
+                        # If we have multiple versions, keep the longest one
+                        is_subset = False
+                        for existing in unique_urns:
+                            if urn in existing:  # This URN is a subset of an existing one
+                                is_subset = True
+                                break
+                            elif existing in urn:  # Existing URN is subset of this one
+                                unique_urns.remove(existing)
+                                break
+                        
+                        if not is_subset:
+                            unique_urns.append(urn)
                 
                 if unique_urns:
                     # Use the first URN that's not yours
@@ -222,7 +237,7 @@ class LinkedInProfileURNExtractor:
                 matches = re.findall(pattern, page_content)
                 if matches:
                     for img_id in matches:
-                        if img_id != "person-placeholder" and len(img_id) > 8:
+                        if img_id != "person-placeholder" and len(img_id) > 20:  # LinkedIn URNs are typically longer
                             return f"urn:li:fsd_profile:{img_id}"
             
             return None
@@ -258,14 +273,18 @@ class LinkedInProfileURNExtractor:
                     
                     # Look in included elements for profile URNs
                     if 'included' in data:
+                        candidate_urns = []
                         for element in data['included']:
                             if 'entityUrn' in element:
                                 urn = element['entityUrn']
                                 if 'fsd_profile' in urn:
                                     urn_id = urn.split(':')[-1]
-                                    if urn_id.startswith("ACoAA") and "CP6v4" not in urn_id:  # Skip your own URN
-                                        entity_urn = urn
-                                        break
+                                    if urn_id.startswith("ACoAA") and "CP6v4" not in urn_id and len(urn_id) > 20:  # Skip your own URN
+                                        candidate_urns.append(urn)
+                        
+                        # Get the longest (most complete) URN
+                        if candidate_urns:
+                            entity_urn = sorted(candidate_urns, key=len, reverse=True)[0]
                     
                     # Check main object if not found in included
                     if not entity_urn and 'entityUrn' in data:
@@ -273,13 +292,13 @@ class LinkedInProfileURNExtractor:
                     
                     # Check for miniProfile with publicIdentifier match
                     if not entity_urn and 'included' in data:
-                        your_urn = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"  # Your URN to exclude
+                        your_urn_id = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"  # Your URN to exclude
                         for element in data['included']:
                             if 'publicIdentifier' in element and element.get('publicIdentifier') == public_id:
                                 if 'entityUrn' in element:
                                     urn = element['entityUrn']
                                     urn_id = urn.split(':')[-1] if ':' in urn else urn
-                                    if urn_id != your_urn:
+                                    if urn_id != your_urn_id and len(urn_id) > 20:
                                         entity_urn = urn
                                         break
                     
@@ -291,7 +310,8 @@ class LinkedInProfileURNExtractor:
                     # Backup method: Search through entire response for URNs
                     response_text = json.dumps(data)
                     urn_patterns = [
-                        r'urn:li:fsd_profile:([A-Za-z0-9_-]{16,24})',
+                        r'urn:li:fsd_profile:([A-Za-z0-9_-]{20,50})',  # Extended pattern for full URN
+                        r'urn:li:fsd_profile:([A-Za-z0-9_-]+)',  # Catch-all pattern
                         r'"miniProfile":"urn:li:fs_miniProfile:([^"]+)"'
                     ]
                     
@@ -300,9 +320,17 @@ class LinkedInProfileURNExtractor:
                         matches = re.findall(pattern, response_text)
                         all_urns.extend(matches)
                     
-                    # Filter out your own URN
-                    your_urn = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"  # Your URN to exclude
-                    unique_urns = [u for u in set(all_urns) if your_urn not in u and u.startswith("ACoAA")]
+                    # Filter out your own URN and keep longest versions
+                    your_urn_id = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"  # Your URN to exclude
+                    
+                    # Filter and prioritize longer URNs
+                    valid_urns = []
+                    for urn in set(all_urns):
+                        if your_urn_id not in urn and urn.startswith("ACoAA") and len(urn) > 20:
+                            valid_urns.append(urn)
+                    
+                    # Sort by length (longest first) to get the most complete URN
+                    unique_urns = sorted(valid_urns, key=len, reverse=True)
                     
                     if unique_urns:
                         urn_id = unique_urns[0]
@@ -316,20 +344,29 @@ class LinkedInProfileURNExtractor:
                     # Try to extract URN directly from response text
                     urn_patterns = [
                         r'"publicIdentifier":"' + re.escape(public_id) + r'[^}]+"objectUrn":"([^"]+)"',
-                        r'"urn:li:fsd_profile:([A-Za-z0-9_-]{16,24})"'
+                        r'"urn:li:fsd_profile:([A-Za-z0-9_-]{20,50})"',  # Extended pattern for full URN
+                        r'"urn:li:fsd_profile:([A-Za-z0-9_-]+)"'  # Catch-all pattern
                     ]
                     
+                    all_matches = []
                     for pattern in urn_patterns:
                         matches = re.findall(pattern, response.text)
-                        if matches:
-                            for match in matches:
-                                if match != "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc":  # Skip your own URN
-                                    full_urn = f"urn:li:fsd_profile:{match}"
-                                    if not full_urn.startswith("urn:li:"):
-                                        full_urn = f"urn:li:fsd_profile:{match}"
-                                    cleaned_urn = self.clean_urn(full_urn)
-                                    print(f"✅ Found URN via text parsing: {cleaned_urn}")
-                                    return cleaned_urn
+                        all_matches.extend(matches)
+                    
+                    # Filter and sort by length to get the most complete URN
+                    your_urn_id = "ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"
+                    valid_matches = [m for m in all_matches if m != your_urn_id and len(m) > 20]
+                    
+                    if valid_matches:
+                        # Sort by length (longest first)
+                        longest_match = sorted(valid_matches, key=len, reverse=True)[0]
+                        
+                        full_urn = f"urn:li:fsd_profile:{longest_match}"
+                        if not full_urn.startswith("urn:li:"):
+                            full_urn = f"urn:li:fsd_profile:{longest_match}"
+                        cleaned_urn = self.clean_urn(full_urn)
+                        print(f"✅ Found URN via text parsing: {cleaned_urn}")
+                        return cleaned_urn
             else:
                 print(f"❌ API request failed. Status code: {response.status_code}")
             

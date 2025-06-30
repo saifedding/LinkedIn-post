@@ -52,6 +52,26 @@ Enter a name or LinkedIn URL when prompted, and the script will:
 - Send your message directly via the LinkedIn API
 - Provide feedback on the message delivery status
 
+### Message New Contacts
+
+Send messages to LinkedIn profiles you've never contacted before:
+
+```
+python message_new_contact.py https://www.linkedin.com/in/johndoe/ "Hello John, nice to connect!"
+```
+
+This script:
+- Extracts the profile URN from the LinkedIn URL
+- Uses the exact same format as the PowerShell script for new contacts
+- Sends messages via the `hostRecipientUrns` parameter
+- Matches the headers and payload structure for maximum compatibility
+
+You can also run it interactively:
+```
+python message_new_contact.py https://www.linkedin.com/in/johndoe/
+# You'll be prompted to enter your message
+```
+
 ## PowerShell Usage
 
 The script provides a simple way to send LinkedIn messages using PowerShell.
@@ -151,10 +171,12 @@ Alternatively, you can set up the configuration manually:
 - `send_linkedin_message.ps1` - PowerShell script for sending messages
 - `extract_cookies.ps1` - Helper script to generate configuration
 - `linkedin_config_template.json` - Template for configuration
-- `send_message.py` - Python script for sending messages
+- `send_message.py` - Python script for sending messages to existing contacts
+- `message_new_contact.py` - Python script for messaging new contacts (never contacted before)
 - `get_urns.py` - Python script to extract URNs by contact name
 - `get_profile_urns.py` - Python script to extract URNs from profile URLs
 - `linkedin_conversation_extractor.py` - Core library for conversation data extraction
+- `test_new_message.py` - Test script to verify new contact messaging functionality
 
 ## Disclaimer
 
