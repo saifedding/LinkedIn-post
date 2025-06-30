@@ -4,6 +4,7 @@ import re
 import uuid
 import html
 from typing import Optional, Tuple
+from linkedin_conversation_extractor import LinkedInConversationExtractor  # NEW IMPORT
 
 # ==========================================
 # AUTOMATION FUNCTIONS FOR LINKEDIN URNS
@@ -226,55 +227,13 @@ headers = {
 # AUTOMATED URN EXTRACTION
 # ==========================================
 
-# Example usage - replace with actual profile URL or URN
-TARGET_PROFILE = "https://www.linkedin.com/in/oussamagaham/"  # Replace with actual profile URL
-
 # Create session with cookies
 session = requests.Session()
 session.cookies.update(cookies)
 
-# Automatically get URNs
-print("🔍 Extracting LinkedIn URNs...")
-mailbox_urn, conversation_urn = get_linkedin_urns(TARGET_PROFILE, session)
-
-# ==========================================
-# FALLBACK TO EXISTING CONVERSATION URNs
-# ==========================================
-
-# Known working conversation URNs (from your existing conversations)
-EXISTING_CONVERSATIONS = {
-    "urn:li:fsd_profile:ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc": "urn:li:msg_conversation:(urn:li:fsd_profile:ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc,2-OTkxOWNhY2YtYWY1ZC00OTNjLWE5YzItMmZiYjFhYzE2MjE1XzEwMA==)"
-}
-
-# Use existing conversation if available
-if mailbox_urn and mailbox_urn in EXISTING_CONVERSATIONS:
-    conversation_urn = EXISTING_CONVERSATIONS[mailbox_urn]
-    print(f"✅ Using existing conversation: {conversation_urn}")
-
-if not mailbox_urn or not conversation_urn:
-    print("❌ Failed to get URNs. Using fallback values...")
-    # Fallback to original hardcoded values
-    mailbox_urn = "urn:li:fsd_profile:ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc"
-    conversation_urn = "urn:li:msg_conversation:(urn:li:fsd_profile:ACoAACP6v4EBbrCCbpgNB017RQfDpIJA4cgt_oc,2-OTkxOWNhY2YtYWY1ZC00OTNjLWE5YzItMmZiYjFhYzE2MjE1XzEwMA==)"
-else:
-    print(f"✅ Mailbox URN: {mailbox_urn}")
-    print(f"✅ Conversation URN: {conversation_urn}")
-
-# Updated message payload with automated URNs
-payload = {
-    "message": {
-        "body": {
-            "attributes": [],
-            "text": "🎉 SUCCESS! This message was sent using automated URN extraction with existing conversation!"
-        },
-        "renderContentUnions": [],
-        "conversationUrn": conversation_urn,
-        "originToken": str(uuid.uuid4())  # Generate unique origin token
-    },
-    "mailboxUrn": mailbox_urn,
-    "trackingId": str(uuid.uuid4())[:16],  # Generate unique tracking ID
-    "dedupeByClientGeneratedToken": False
-}
+# Initialize URNs as None - will be set via name lookup
+mailbox_urn = None
+conversation_urn = None
 
 # ==========================================
 # SEND MESSAGE WITH AUTOMATED URNS
@@ -336,11 +295,83 @@ def send_linkedin_message(message_text: str, target_profile: str) -> bool:
 # ==========================================
 
 if __name__ == "__main__":
-    # Send message directly using the already extracted URNs
+    # NEW: Ask user for recipient's name and resolve URNs automatically
+    input_value = input("👤 Enter the recipient's name OR LinkedIn profile URL (e.g., 'oussama' or 'https://www.linkedin.com/in/oussamagaham/'): ").strip()
+    if input_value:
+        try:
+            extractor = LinkedInConversationExtractor()
+            result = extractor.get_urns_by_name(input_value)
+            if result:
+                mailbox_urn = result["mailbox_urn"]
+                conversation_urn = result["conversation_urn"]
+                print("✅ Resolved URNs via name/URL lookup!")
+                print(f"   Mailbox URN: {mailbox_urn}")
+                print(f"   Conversation URN: {conversation_urn}")
+            else:
+                print("❌ No existing conversation found for that name/URL.")
+                
+                # Check if person might exist but no conversation yet
+                person_exists = extractor.check_if_person_exists(input_value)
+                
+                print()
+                if person_exists:
+                    print("✅ Profile appears to be valid, but you haven't messaged them yet.")
+                    print()
+                    print("💡 LinkedIn API Limitation:")
+                    print("   • You can only send messages to people you've ALREADY messaged before")
+                    print("   • LinkedIn doesn't allow creating new conversations via API")
+                    print()
+                    print("🔧 To message this person:")
+                    print(f"   1. Go to: {input_value}")
+                    print("   2. Click 'Message' button on their profile")
+                    print("   3. Send at least one message manually")
+                    print("   4. Then come back and use this script for automated messaging")
+                else:
+                    print("❓ Could not verify if this profile exists.")
+                    print()
+                    print("💡 Possible reasons:")
+                    print("   • Person is not in your network")
+                    print("   • Invalid profile URL or name")
+                    print("   • You haven't messaged them before")
+                    print()
+                    print("🔧 To fix this:")
+                    print("   1. Go to LinkedIn.com and search for the person")
+                    print("   2. Make sure you can find their profile")
+                    print("   3. Send them a connection request first (if needed)")
+                    print("   4. Send at least one message manually")
+                    print("   5. Then use this script for automated messaging")
+                
+                print()
+                print("⚠️  This is a LinkedIn security feature to prevent spam.")
+                exit(1)
+        except Exception as e:
+            print(f"❌ Error during name/URL lookup: {e}")
+            exit(1)
+    else:
+        print("❌ No name or URL provided. Please enter a recipient's name or LinkedIn profile URL.")
+        exit(1)
+
+    # Send message directly using the (possibly updated) URNs
     if mailbox_urn and conversation_urn:
+        # Create payload dynamically with extracted URNs
+        payload = {
+            "message": {
+                "body": {
+                    "attributes": [],
+                    "text": "Hi "
+                },
+                "renderContentUnions": [],
+                "conversationUrn": conversation_urn,
+                "originToken": str(uuid.uuid4())  # Generate unique origin token
+            },
+            "mailboxUrn": mailbox_urn,
+            "trackingId": str(uuid.uuid4())[:16],  # Generate unique tracking ID
+            "dedupeByClientGeneratedToken": False
+        }
+        
         url = "https://www.linkedin.com/voyager/api/voyagerMessagingDashMessengerMessages?action=createMessage"
         
-        print(f"📤 Sending message...")
+        print(f"📤 Sending message…")
         print(f"🎯 To: {mailbox_urn}")
         print(f"💬 Conversation: {conversation_urn}")
         
@@ -348,10 +379,14 @@ if __name__ == "__main__":
         
         if response.status_code == 200:
             print("🎉 SUCCESS! Message sent with automated URN extraction!")
-            print(f"✅ Response: {response.json()}")
+            try:
+                print(f"✅ Response: {response.json()}")
+            except Exception:
+                # Response might not be JSON
+                print("✅ Message sent (non-JSON response).")
         else:
             print(f"❌ Failed to send message. Status: {response.status_code}")
             print(f"Response: {response.text}")
     else:
-        print("😞 Could not send message - missing URNs")
+        print("😞 Could not send message – missing URNs")
 

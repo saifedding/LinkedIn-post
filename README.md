@@ -1,8 +1,58 @@
 # LinkedIn Message Sender
 
-A PowerShell script to programmatically send messages on LinkedIn.
+Tools for programmatically sending messages on LinkedIn.
 
-## Usage
+## Features
+
+- PowerShell script for sending LinkedIn messages
+- Python scripts for extracting conversation URNs by name
+- Profile URN extractor for messaging new contacts
+- Utilities for managing LinkedIn messaging
+
+## Python Tools
+
+### Get URNs by Name
+
+Extract URNs for existing conversations using the person's name:
+
+```
+python get_urns.py
+```
+
+This interactive script will:
+- Fetch all your LinkedIn conversations
+- Map contacts' names to their URNs
+- Let you search for people by name to get their URNs
+
+### Extract Profile URNs
+
+Extract URNs directly from a LinkedIn profile URL (for messaging new contacts):
+
+```
+python get_profile_urns.py https://www.linkedin.com/in/johndoe/
+```
+
+This script helps you:
+- Get the recipient's URN (`hostRecipientUrns`) from their profile URL
+- Format a ready-to-use API request payload
+- Generate PowerShell-compatible code for sending messages
+
+For more details, see [README_PROFILE_URN.md](README_PROFILE_URN.md)
+
+### Send Messages in Python
+
+Send messages directly using Python:
+
+```
+python send_message.py
+```
+
+Enter a name or LinkedIn URL when prompted, and the script will:
+- Look up the necessary URNs
+- Send your message directly via the LinkedIn API
+- Provide feedback on the message delivery status
+
+## PowerShell Usage
 
 The script provides a simple way to send LinkedIn messages using PowerShell.
 
@@ -98,9 +148,13 @@ Alternatively, you can set up the configuration manually:
 
 ## File Structure
 
-- `send_linkedin_message.ps1` - Main script for sending messages
+- `send_linkedin_message.ps1` - PowerShell script for sending messages
 - `extract_cookies.ps1` - Helper script to generate configuration
 - `linkedin_config_template.json` - Template for configuration
+- `send_message.py` - Python script for sending messages
+- `get_urns.py` - Python script to extract URNs by contact name
+- `get_profile_urns.py` - Python script to extract URNs from profile URLs
+- `linkedin_conversation_extractor.py` - Core library for conversation data extraction
 
 ## Disclaimer
 
